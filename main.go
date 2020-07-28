@@ -202,6 +202,14 @@ func main() {
 		log.Println("请输入想创建的app名称")
 		return
 	}
+
+	if !checkName(*appName) {
+		log.Println("app名称不合法")
+		log.Println(`名称中不应当出现- @ ! # $ % ^ & * () [] {} | \ ; : \ ' ’ ， 。 《 》 < > · ~ 。`)
+		log.Println(`连接符请使用_（下划线）`)
+		return
+	}
+
 	var err error
 	//
 	//err := os.Mkdir(*appName, os.ModePerm)
@@ -240,4 +248,24 @@ func main() {
 
 	os.Remove("test-be.tar.gz")
 	log.Println("Generator success")
+}
+
+var forbiddenStrings = `-@!#$%^&*()[]{}|\;:/'’<>·~.?"`
+
+var forbiddenCharMap map[uint8]bool
+
+func initForbiddenChar() {
+	forbiddenCharMap = make(map[uint8]bool)
+	for i := 0; i < len(forbiddenStrings); i++ {
+		forbiddenCharMap[forbiddenStrings[i]] = true
+	}
+}
+
+func checkName(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if _, ok := forbiddenCharMap[s[i]]; ok {
+			return false
+		}
+	}
+	return true
 }
