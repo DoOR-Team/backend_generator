@@ -199,9 +199,11 @@ func main() {
 
 	// 参数非空校验
 	if *appName == "" {
-		log.Println("请输入想创建的app名称")
+		log.Println("请输入想创建的app名称\nbackend_generator --name APPNAME")
 		return
 	}
+
+	initForbiddenChar()
 
 	if !checkName(*appName) {
 		log.Println("app名称不合法")
