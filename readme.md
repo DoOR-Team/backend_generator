@@ -2,25 +2,35 @@
 
 ### 使用方法
 
-1. 下载代码，将代码下载至$GOPATH/src/gitlab.xuelang.xyz/xuelang_algo/中
+1. 下载代码，将代码下载至$GOPATH/src/github.com/DoOR-Team/中
     ```
-    mkdir -p $GOPATH/src/gitlab.hz-xuelang.xyz/xuelang_algo/
-    cd $GOPATH/src/gitlab.hz-xuelang.xyz/xuelang_algo/
-    git clone git@101.132.72.35:xuelang_algo/backend-generator.git
+    mkdir -p $GOPATH/src/github.com/DoOR-Team/
+    cd $GOPATH/src/github.com/DoOR-Team/
+    git clone git@github.com:DoOR-Team/backend_generator.git
     ```
 2.  编译该项目
     ```
-    cd $GOPATH/src/gitlab.hz-xuelang.xyz/xuelang_algo/backend-generator
+    cd $GOPATH/src/github.com/DoOR-Team/backend_generator
     go build && go install
     ```
-3. 生成一个项目，注意该项目只能存在于$GOPATH/src/gitlab.xuelang.xyz/xuelang_algo/，如果需要在其他目录，自行修改对应文件。APPNAME自行替换为自己的名字
+3. 生成一个项目，注意该项目只能存在于$GOPATH/src/github.com/DoOR-Team/，如果需要在其他目录，自行修改对应文件。APPNAME自行替换为自己的名字
     ```
-    cd $GOPATH/src/gitlab.hz-xuelang.xyz/xuelang_algo/
-    backend-generator --name APPNAME
+    cd $GOPATH/src/github.com/DoOR-Team/
+    backend_generator --name APPNAME
     ```
 4. 进入生成的项目，并生成protobuf，APPNAME自行替换为自己的名字
     ```
-    cd $GOPATH/src/gitlab.hz-xuelang.xyz/xuelang_algo/APPNAME
+    cd $GOPATH/src/github.com/DoOR-Team/APPNAME
     sh genprotos.sh
     go build
+    ```
+
+5. 如果希望该项目能够对接自动部署，需要在该项目下添加.deploy文件，文件内容参考如下：
+    ```yaml
+    deploy:
+      port: 0 #线上部署服务端口号，0为随机
+      subdomain: test_deploy #部署后的subdomain，daily环境会添加_daily后缀
+      daily_port: 0 #日常测试环境服务的端口号，0为随机
+      # 企业微信机器人的webhook，对具体项目，创建特定的机器人，否则运维群会爆炸。
+      wxboturl: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=bb18509f-2324-47dc-8672-64736b11ab8f
     ```

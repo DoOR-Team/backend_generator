@@ -1,0 +1,6 @@
+deploy:
+  port: 0 #
+  subdomain: test_deploy
+  daily: true
+  daily_port: 0
+  wxboturl: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=bb18509f-2324-47dc-8672-64736b11ab8f
