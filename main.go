@@ -8,10 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/DoOR-Team/goutils/command"
+	"github.com/DoOR-Team/goutils/log"
 )
 
 var appName = flag.String("name", "", "app名称")
@@ -194,6 +196,17 @@ func replaceFileString(fileName string, old string, new string) {
 	fmt.Printf("%sFINISH!\n", fileName)
 }
 
+func PathExists(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	return false
+}
+
 func main() {
 	flag.Parse()
 
@@ -220,22 +233,35 @@ func main() {
 	//	return
 	//}
 
-	err = downloadBaseFile()
-	if err != nil {
-		log.Printf("下载错误，%s\n", err.Error())
-		return
+	if !PathExists("test-be") {
+		err = downloadBaseFile()
+		if err != nil {
+			log.Printf("下载错误，%s\n", err.Error())
+			return
+		}
+
+		err = DeCompress("test-be.tar.gz", "./")
+		if err != nil {
+			log.Printf("解压缩错误，%s\n", err.Error())
+			panic(err)
+		}
+		defer os.Remove("test-be.tar.gz")
+
+		err = os.Rename("test-be", *appName)
+		if err != nil {
+			panic(err)
+		}
+
+	} else {
+		log.Println("test-be存在，直接copy")
+		err, logStr := command.Shellout("cp -r test-be " + *appName)
+		if err != nil {
+			panic(err)
+		}
+		log.Println(logStr)
 	}
 
-	err = DeCompress("test-be.tar.gz", "./")
-	if err != nil {
-		log.Printf("解压缩错误，%s\n", err.Error())
-		panic(err)
-	}
-
-	err = os.Rename("test-be", *appName)
-	if err != nil {
-		panic(err)
-	}
+	k8sName := strings.ReplaceAll(*appName, "_", "-")
 
 	className := strFirstToUpper(*appName)
 	replaceFileString(fmt.Sprintf("%s/protos/service.proto", *appName), "Demo", className)
@@ -247,8 +273,11 @@ func main() {
 	replaceFileString(fmt.Sprintf("%s/main.go", *appName), "Demo", className)
 	replaceFileString(fmt.Sprintf("%s/main.go", *appName), "test-be", *appName)
 	replaceFileString(fmt.Sprintf("%s/.gitignore", *appName), "test-be", *appName)
+	replaceFileString(fmt.Sprintf("%s/configs/daily/app.yaml", *appName), "test-be", k8sName)
+	replaceFileString(fmt.Sprintf("%s/configs/daily/app.yaml", *appName), "test_be", *appName)
+	replaceFileString(fmt.Sprintf("%s/configs/production/app.yaml", *appName), "test-be", k8sName)
+	replaceFileString(fmt.Sprintf("%s/configs/production/app.yaml", *appName), "test_be", *appName)
 
-	os.Remove("test-be.tar.gz")
 	log.Println("Generator success")
 }
 
