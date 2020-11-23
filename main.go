@@ -8,8 +8,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/DoOR-Team/goutils/command"
@@ -19,8 +21,8 @@ import (
 var appName = flag.String("name", "", "app名称")
 
 var Urls = []string{
-	"http://xuelang-algo-test.oss-cn-hangzhou.aliyuncs.com/test-be.tar.gz",
-	"https://github.com/jpbirdy/backend-generator/raw/master/test-be.tar.gz",
+	"http://xuelang-algo-test.oss-cn-hangzhou.aliyuncs.com/test_be.tar.gz",
+	// "https://github.com/jpbirdy/backend-generator/raw/master/tesbe.tar.gz",
 }
 
 func downloadBaseFile() error {
@@ -30,7 +32,7 @@ func downloadBaseFile() error {
 			log.Printf("url: %s, 下载失败%s，更换下载源", url, err.Error())
 			continue
 		}
-		f, err := os.Create(fmt.Sprintf("test-be.tar.gz"))
+		f, err := os.Create(fmt.Sprintf("test_be.tar.gz"))
 		if err != nil {
 			log.Printf("url: %s, 下载失败%s，更换下载源", url, err.Error())
 			continue
@@ -207,6 +209,38 @@ func PathExists(path string) bool {
 	return false
 }
 
+type FilePath struct {
+	AbsPath  string
+	FileName string
+	Path     string
+}
+
+func GetAllFile(pathname string, filenames *[]FilePath) error {
+	rd, err := ioutil.ReadDir(pathname)
+	path, _ := os.Open(pathname + "/")
+	absPath, _ := filepath.Abs(filepath.Dir(path.Name()))
+
+	path.Close()
+
+	for _, fi := range rd {
+		if strings.HasPrefix(fi.Name(), ".") {
+			continue
+		}
+		if fi.IsDir() {
+			// fmt.Printf("[%s]\n", pathname+"/"+fi.Name())
+			GetAllFile(pathname+"/"+fi.Name(), filenames)
+		} else {
+			// fmt.Println(absPath)
+			*filenames = append(*filenames, FilePath{
+				AbsPath:  absPath + "/" + fi.Name(),
+				FileName: fi.Name(),
+				Path:     pathname,
+			})
+		}
+	}
+	return err
+}
+
 func main() {
 	flag.Parse()
 
@@ -233,28 +267,28 @@ func main() {
 	//	return
 	//}
 
-	if !PathExists("test-be") {
+	if !PathExists("test_be") {
 		err = downloadBaseFile()
 		if err != nil {
 			log.Printf("下载错误，%s\n", err.Error())
 			return
 		}
 
-		err = DeCompress("test-be.tar.gz", "./")
+		err = DeCompress("test_be.tar.gz", "./")
 		if err != nil {
 			log.Printf("解压缩错误，%s\n", err.Error())
 			panic(err)
 		}
-		defer os.Remove("test-be.tar.gz")
+		defer os.Remove("test_be.tar.gz")
 
-		err = os.Rename("test-be", *appName)
+		err = os.Rename("test_be", *appName)
 		if err != nil {
 			panic(err)
 		}
 
 	} else {
-		log.Println("test-be存在，直接copy")
-		err, logStr := command.Shellout("cp -r test-be " + *appName)
+		log.Println("test_be存在，直接copy")
+		err, logStr := command.Shellout("cp -r test_be " + *appName)
 		if err != nil {
 			panic(err)
 		}
@@ -264,19 +298,31 @@ func main() {
 	k8sName := strings.ReplaceAll(*appName, "_", "-")
 
 	className := strFirstToUpper(*appName)
-	replaceFileString(fmt.Sprintf("%s/protos/service.proto", *appName), "Demo", className)
-	replaceFileString(fmt.Sprintf("%s/service/service.go", *appName), "Demo", className)
-	replaceFileString(fmt.Sprintf("%s/service/service.go", *appName), "test-be", *appName)
-	replaceFileString(fmt.Sprintf("%s/service/service_test.go", *appName), "test-be", *appName)
-	replaceFileString(fmt.Sprintf("%s/tables/table_test.go", *appName), "test-be", *appName)
-	replaceFileString(fmt.Sprintf("%s/Dockerfile", *appName), "test-be", *appName)
-	replaceFileString(fmt.Sprintf("%s/main.go", *appName), "Demo", className)
-	replaceFileString(fmt.Sprintf("%s/main.go", *appName), "test-be", *appName)
-	replaceFileString(fmt.Sprintf("%s/.gitignore", *appName), "test-be", *appName)
-	replaceFileString(fmt.Sprintf("%s/configs/daily/app.yaml", *appName), "test-be", k8sName)
-	replaceFileString(fmt.Sprintf("%s/configs/daily/app.yaml", *appName), "test_be", *appName)
-	replaceFileString(fmt.Sprintf("%s/configs/production/app.yaml", *appName), "test-be", k8sName)
-	replaceFileString(fmt.Sprintf("%s/configs/production/app.yaml", *appName), "test_be", *appName)
+
+	allFiles := make([]FilePath, 0)
+	GetAllFile(*appName, &allFiles)
+	for _, f := range allFiles {
+		replaceFileString(f.AbsPath, "Demo", className)
+		replaceFileString(f.AbsPath, "test_be", *appName)
+		replaceFileString(f.AbsPath, "test-be", k8sName)
+	}
+
+	// replaceFileString(fmt.Sprintf("%s/protos/service.proto", *appName), "Demo", className)
+	// replaceFileString(fmt.Sprintf("%s/service/service.go", *appName), "Demo", className)
+	// replaceFileString(fmt.Sprintf("%s/tables/table_test.go", *appName), "test-be", *appName)
+	// replaceFileString(fmt.Sprintf("%s/Dockerfile", *appName), "test-be", *appName)
+	// replaceFileString(fmt.Sprintf("%s/main.go", *appName), "Demo", className)
+	// replaceFileString(fmt.Sprintf("%s/main.go", *appName), "test-be", *appName)
+	// replaceFileString(fmt.Sprintf("%s/.gitignore", *appName), "test-be", *appName)
+	// replaceFileString(fmt.Sprintf("%s/configs/daily/app.yaml", *appName), "test-be", k8sName)
+	// replaceFileString(fmt.Sprintf("%s/configs/daily/app.yaml", *appName), "test_be", *appName)
+	// replaceFileString(fmt.Sprintf("%s/configs/production/app.yaml", *appName), "test-be", k8sName)
+	// replaceFileString(fmt.Sprintf("%s/configs/production/app.yaml", *appName), "test_be", *appName)
+	//
+	// replaceFileString(fmt.Sprintf("%s/configs/daily/config.yaml", *appName), "test-be", k8sName)
+	// replaceFileString(fmt.Sprintf("%s/configs/daily/config.yaml", *appName), "test_be", *appName)
+	// replaceFileString(fmt.Sprintf("%s/configs/production/config.yaml", *appName), "test-be", k8sName)
+	// replaceFileString(fmt.Sprintf("%s/configs/production/config.yaml", *appName), "test_be", *appName)
 
 	log.Println("Generator success")
 }
