@@ -19,28 +19,31 @@ import (
 )
 
 var appName = flag.String("name", "", "app名称")
+var template = flag.String("template", "test_be", "template")
 
-var Urls = []string{
-	"http://xuelang-algo-test.oss-cn-hangzhou.aliyuncs.com/test_be.tar.gz",
-	// "https://github.com/jpbirdy/backend-generator/raw/master/tesbe.tar.gz",
+var templateUrl = map[string]string{
+	"test_be": "http://xuelang-algo-test.oss-cn-hangzhou.aliyuncs.com/test_be.tar.gz",
+	"test_ae": "http://xuelang-algo-test.oss-cn-hangzhou.aliyuncs.com/test_ae.tar.gz",
 }
 
-func downloadBaseFile() error {
-	for _, url := range Urls {
-		res, err := http.Get(url)
-		if err != nil {
-			log.Printf("url: %s, 下载失败%s，更换下载源", url, err.Error())
-			continue
-		}
-		f, err := os.Create(fmt.Sprintf("test_be.tar.gz"))
-		if err != nil {
-			log.Printf("url: %s, 下载失败%s，更换下载源", url, err.Error())
-			continue
-		}
-		io.Copy(f, res.Body)
-		return nil
+func downloadBaseFile(template string) error {
+	url := templateUrl[template]
+	if url == "" {
+		log.Printf("url: %s, 下载失败%s，更换下载源", url)
+		return errors.New("模板错误")
 	}
-	return errors.New("下载失败")
+	res, err := http.Get(url)
+	if err != nil {
+		log.Printf("url: %s, 下载失败%s", url, err.Error())
+		return err
+	}
+	f, err := os.Create(fmt.Sprintf("%s.tar.gz", template))
+	if err != nil {
+		log.Printf("url: %s, 下载失败%s", url, err.Error())
+		return err
+	}
+	io.Copy(f, res.Body)
+	return nil
 }
 
 //压缩 使用gzip压缩成tar.gz
@@ -246,7 +249,12 @@ func main() {
 
 	// 参数非空校验
 	if *appName == "" {
-		log.Println("请输入想创建的app名称\nbackend_generator --name APPNAME")
+		log.Println("请输入想创建的app名称\nbackend_generator --name APPNAME --template [test_be|test_ae]")
+		return
+	}
+
+	if *template == "" {
+		log.Println("请输入模板名称\nbackend_generator --name APPNAME --template [test_be|test_ae]")
 		return
 	}
 
@@ -267,28 +275,28 @@ func main() {
 	//	return
 	//}
 
-	if !PathExists("test_be") {
-		err = downloadBaseFile()
+	if !PathExists(*template) {
+		err = downloadBaseFile(*template)
 		if err != nil {
 			log.Printf("下载错误，%s\n", err.Error())
 			return
 		}
 
-		err = DeCompress("test_be.tar.gz", "./")
+		err = DeCompress(*template+".tar.gz", "./")
 		if err != nil {
 			log.Printf("解压缩错误，%s\n", err.Error())
 			panic(err)
 		}
-		defer os.Remove("test_be.tar.gz")
+		defer os.Remove(*template + ".tar.gz")
 
-		err = os.Rename("test_be", *appName)
+		err = os.Rename(*template, *appName)
 		if err != nil {
 			panic(err)
 		}
 
 	} else {
-		log.Println("test_be存在，直接copy")
-		err, logStr := command.Shellout("cp -r test_be " + *appName)
+		log.Println(*template + "存在，直接copy")
+		err, logStr := command.Shellout("cp -r " + *template + *appName)
 		if err != nil {
 			panic(err)
 		}
@@ -296,33 +304,17 @@ func main() {
 	}
 
 	k8sName := strings.ReplaceAll(*appName, "_", "-")
-
 	className := strFirstToUpper(*appName)
+
+	templateK8sName := strings.ReplaceAll(*template, "_", "-")
 
 	allFiles := make([]FilePath, 0)
 	GetAllFile(*appName, &allFiles)
 	for _, f := range allFiles {
 		replaceFileString(f.AbsPath, "Demo", className)
-		replaceFileString(f.AbsPath, "test_be", *appName)
-		replaceFileString(f.AbsPath, "test-be", k8sName)
+		replaceFileString(f.AbsPath, *template, *appName)
+		replaceFileString(f.AbsPath, templateK8sName, k8sName)
 	}
-
-	// replaceFileString(fmt.Sprintf("%s/protos/service.proto", *appName), "Demo", className)
-	// replaceFileString(fmt.Sprintf("%s/service/service.go", *appName), "Demo", className)
-	// replaceFileString(fmt.Sprintf("%s/tables/table_test.go", *appName), "test-be", *appName)
-	// replaceFileString(fmt.Sprintf("%s/Dockerfile", *appName), "test-be", *appName)
-	// replaceFileString(fmt.Sprintf("%s/main.go", *appName), "Demo", className)
-	// replaceFileString(fmt.Sprintf("%s/main.go", *appName), "test-be", *appName)
-	// replaceFileString(fmt.Sprintf("%s/.gitignore", *appName), "test-be", *appName)
-	// replaceFileString(fmt.Sprintf("%s/configs/daily/app.yaml", *appName), "test-be", k8sName)
-	// replaceFileString(fmt.Sprintf("%s/configs/daily/app.yaml", *appName), "test_be", *appName)
-	// replaceFileString(fmt.Sprintf("%s/configs/production/app.yaml", *appName), "test-be", k8sName)
-	// replaceFileString(fmt.Sprintf("%s/configs/production/app.yaml", *appName), "test_be", *appName)
-	//
-	// replaceFileString(fmt.Sprintf("%s/configs/daily/config.yaml", *appName), "test-be", k8sName)
-	// replaceFileString(fmt.Sprintf("%s/configs/daily/config.yaml", *appName), "test_be", *appName)
-	// replaceFileString(fmt.Sprintf("%s/configs/production/config.yaml", *appName), "test-be", k8sName)
-	// replaceFileString(fmt.Sprintf("%s/configs/production/config.yaml", *appName), "test_be", *appName)
 
 	log.Println("Generator success")
 }
