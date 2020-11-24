@@ -296,7 +296,7 @@ func main() {
 
 	} else {
 		log.Println(*template + "存在，直接copy")
-		err, logStr := command.Shellout("cp -r " + *template + *appName)
+		err, logStr := command.Shellout("cp -r " + *template + " " + *appName)
 		if err != nil {
 			panic(err)
 		}
