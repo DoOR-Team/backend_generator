@@ -316,6 +316,10 @@ func main() {
 		replaceFileString(f.AbsPath, templateK8sName, k8sName)
 	}
 
+	replaceFileString(*appName+"/.gitignore", *template, *appName)
+
+	os.Rename(*appName+"/protos/service.proto", *appName+"/protos/"+*appName+".proto")
+
 	log.Println("Generator success")
 }
 
