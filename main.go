@@ -1,151 +1,32 @@
 package main
 
 import (
-	"archive/tar"
 	"bufio"
-	"compress/gzip"
-	"errors"
+	"code.lyntime.com/common/goutils/command"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 
-	"github.com/DoOR-Team/goutils/command"
-	"github.com/DoOR-Team/goutils/log"
+	"code.lyntime.com/common/goutils/log"
 )
 
 var appName = flag.String("name", "", "app名称")
 var template = flag.String("template", "test_be", "template")
+var group = flag.String("group", "", "group")
 
 var templateUrl = map[string]string{
-	"test_be": "http://xuelang-algo-test.oss-cn-hangzhou.aliyuncs.com/test_be.tar.gz",
-	"test_ae": "http://xuelang-algo-test.oss-cn-hangzhou.aliyuncs.com/test_ae.tar.gz",
+	"test_be": "ssh://git@code.lyntime.com:30022/common/test_be.git",
+	// "test_ae": "http://xuelang-algo-test.oss-cn-hangzhou.aliyuncs.com/test_ae.tar.gz",
 }
-
-func downloadBaseFile(template string) error {
-	url := templateUrl[template]
-	if url == "" {
-		log.Printf("url: %s, 下载失败%s，更换下载源", url)
-		return errors.New("模板错误")
-	}
-	res, err := http.Get(url)
-	if err != nil {
-		log.Printf("url: %s, 下载失败%s", url, err.Error())
-		return err
-	}
-	f, err := os.Create(fmt.Sprintf("%s.tar.gz", template))
-	if err != nil {
-		log.Printf("url: %s, 下载失败%s", url, err.Error())
-		return err
-	}
-	io.Copy(f, res.Body)
-	return nil
-}
-
-//压缩 使用gzip压缩成tar.gz
-func Compress(files []*os.File, dest string) error {
-	d, _ := os.Create(dest)
-	defer d.Close()
-	gw := gzip.NewWriter(d)
-	defer gw.Close()
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
-	for _, file := range files {
-		err := compress(file, "", tw)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func compress(file *os.File, prefix string, tw *tar.Writer) error {
-	info, err := file.Stat()
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		prefix = prefix + "/" + info.Name()
-		fileInfos, err := file.Readdir(-1)
-		if err != nil {
-			return err
-		}
-		for _, fi := range fileInfos {
-			f, err := os.Open(file.Name() + "/" + fi.Name())
-			if err != nil {
-				return err
-			}
-			err = compress(f, prefix, tw)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		header, err := tar.FileInfoHeader(info, "")
-		header.Name = prefix + "/" + header.Name
-		if err != nil {
-			return err
-		}
-		err = tw.WriteHeader(header)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(tw, file)
-		file.Close()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-//解压 tar.gz
-func DeCompress(tarFile, dest string) error {
-	srcFile, err := os.Open(tarFile)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-	gr, err := gzip.NewReader(srcFile)
-	if err != nil {
-		return err
-	}
-	defer gr.Close()
-	tr := tar.NewReader(gr)
-	for {
-		hdr, err := tr.Next()
-		if err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				return err
-			}
-		}
-		filename := dest + hdr.Name
-		file, err := createFile(filename)
-		if err != nil {
-			return err
-		}
-		if file != nil {
-			io.Copy(file, tr)
-		}
-	}
-	return nil
-}
-
-func createFile(name string) (*os.File, error) {
-	err := os.MkdirAll(string([]rune(name)[0:strings.LastIndex(name, "/")]), os.ModePerm)
-	if err != nil {
-		return nil, err
-	}
-	if strings.HasSuffix(name, "/") {
-		return nil, nil
-	}
-	return os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
+var templatePath = map[string]string{
+	"test_be": ".lyntime/code/common",
+	// "test_ae": "http://xuelang-algo-test.oss-cn-hangzhou.aliyuncs.com/test_ae.tar.gz",
 }
 
 func strFirstToUpper(str string) string {
@@ -157,7 +38,7 @@ func strFirstToUpper(str string) string {
 			continue
 		}
 		vv := []rune(temp[y])
-		//if y != 0 {
+		// if y != 0 {
 		for i := 0; i < len(vv); i++ {
 			if i == 0 {
 				if vv[i] > rune('Z') {
@@ -168,7 +49,7 @@ func strFirstToUpper(str string) string {
 				upperStr += string(vv[i])
 			}
 		}
-		//}
+		// }
 	}
 	return upperStr
 }
@@ -203,6 +84,7 @@ func replaceFileString(fileName string, old string, new string) {
 
 func PathExists(path string) bool {
 	_, err := os.Stat(path)
+	log.Info(err)
 	if err == nil {
 		return true
 	}
@@ -249,13 +131,13 @@ func main() {
 
 	// 参数非空校验
 	if *appName == "" {
-		log.Println("请输入想创建的app名称\nbackend_generator --name APPNAME --template [test_be|test_ae]")
+		// log.Println("请输入想创建的app名称\nbackend_generator --name APPNAME --template [test_be|test_ae]")
+		log.Println("请输入想创建的app名称\nbackend_generator --group GROUPNAME --name APPNAME --template [test_be|test_ae]")
 		return
 	}
 
 	if *template == "" {
-		log.Println("请输入模板名称\nbackend_generator --name APPNAME --template [test_be|test_ae]")
-		return
+		*template = "test_be"
 	}
 
 	initForbiddenChar()
@@ -269,39 +151,61 @@ func main() {
 
 	var err error
 	//
-	//err := os.Mkdir(*appName, os.ModePerm)
-	//if err != nil {
+	// err := os.Mkdir(*appName, os.ModePerm)
+	// if err != nil {
 	//	log.Printf("文件夹创建错误，%s\n", err.Error())
 	//	return
-	//}
+	// }
 
-	if !PathExists(*template) {
-		err = downloadBaseFile(*template)
-		if err != nil {
-			log.Printf("下载错误，%s\n", err.Error())
-			return
-		}
 
-		err = DeCompress(*template+".tar.gz", "./")
-		if err != nil {
-			log.Printf("解压缩错误，%s\n", err.Error())
-			panic(err)
-		}
-		defer os.Remove(*template + ".tar.gz")
+	user, err := user.Current()
 
-		err = os.Rename(*template, *appName)
+	log.Info("目录", user.HomeDir + "/" + templatePath[*template]+"/"+*template)
+
+	templateAbsPath := user.HomeDir + "/" + templatePath[*template]+"/"+*template
+
+
+	if !PathExists(templateAbsPath) {
+
+		log.Info("模板文件不存在，正在创建...")
+		command := fmt.Sprintf(`
+set +x
+mkdir -p %s
+cd %s
+git clone %s
+`, templatePath[*template], templatePath[*template], templateUrl[*template])
+
+		log.Info("正在执行", command)
+		cmd := exec.Command("bash", "-c", command)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
 		if err != nil {
-			panic(err)
+			log.Error(err)
 		}
 
 	} else {
-		log.Println(*template + "存在，直接copy")
-		err, logStr := command.Shellout("cp -r " + *template + " " + *appName)
+		log.Println(*template + "存在，更新，并copy")
+		cmd := exec.Command("bash", "-c", "set +x\ncd " + templateAbsPath + "\ngit pull")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
 		if err != nil {
-			panic(err)
+			log.Error(err)
 		}
-		log.Println(logStr)
 	}
+
+	err, logStr := command.Shellout(fmt.Sprintf(`
+set +x
+cp -r %s %s
+cd %s
+rm -rf .git
+`, templateAbsPath , *appName, *appName))
+	if err != nil {
+		log.Error(logStr)
+		panic(err)
+	}
+	log.Println(logStr)
 
 	k8sName := strings.ReplaceAll(*appName, "_", "-")
 	className := strFirstToUpper(*appName)
@@ -314,6 +218,7 @@ func main() {
 		replaceFileString(f.AbsPath, "Demo", className)
 		replaceFileString(f.AbsPath, *template, *appName)
 		replaceFileString(f.AbsPath, templateK8sName, k8sName)
+		replaceFileString(f.AbsPath, "common", *group)
 	}
 
 	replaceFileString(*appName+"/.gitignore", *template, *appName)
