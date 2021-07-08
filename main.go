@@ -173,7 +173,7 @@ set +x
 mkdir -p %s
 cd %s
 git clone %s
-`, templatePath[*template], templatePath[*template], templateUrl[*template])
+`, user.HomeDir + "/" + templatePath[*template], user.HomeDir + "/" + templatePath[*template], templateUrl[*template])
 
 		log.Info("正在执行", command)
 		cmd := exec.Command("bash", "-c", command)
@@ -216,9 +216,10 @@ rm -rf .git
 	GetAllFile(*appName, &allFiles)
 	for _, f := range allFiles {
 		replaceFileString(f.AbsPath, "Demo", className)
+		replaceFileString(f.AbsPath, "common/"+*template, *group+"/"+*appName)
 		replaceFileString(f.AbsPath, *template, *appName)
 		replaceFileString(f.AbsPath, templateK8sName, k8sName)
-		replaceFileString(f.AbsPath, "common", *group)
+
 	}
 
 	replaceFileString(*appName+"/.gitignore", *template, *appName)
